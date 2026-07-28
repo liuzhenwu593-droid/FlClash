@@ -76,17 +76,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Android Signing
-        if: startsWith(matrix.platform,'android')
-        run: |
-          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
-          echo "${{ secrets.SERVICE_JSON }}" | base64 --decode > android/app/google-services.json
-          {
-            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
-            echo "storePassword=${{ secrets.STORE_PASSWORD }}"
-            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
-          } >> android/local.properties
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -285,7 +274,7 @@ jobs:
           source-directory: ./brew/
           destination-github-username: chen08209
           destination-repository-name: homebrew-tap
-          user-name: 'chen08029'
+          user-name: 'chen08209'
           user-email: 'chen08209@gmail.com'
           target-branch: main
           commit-message: Update Homebrew cask from ${{ github.ref_name }}
@@ -307,7 +296,7 @@ jobs:
           source-directory: ./tmp/
           destination-github-username: chen08209
           destination-repository-name: FlClash-fdroid-repo
-          user-name: 'chen08029'
+          user-name: 'chen08209'
           user-email: 'chen08209@gmail.com'
           target-branch: main
           commit-message: Update from ${{ github.ref_name }}
