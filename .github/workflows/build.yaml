@@ -4,14 +4,39 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: '选择构建平台'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - windows
+          - linux
+          - macos
+      is_stable:
+        description: '是否为稳定版'
+        required: false
+        default: false
+        type: boolean
+      flutter_version:
+        description: 'Flutter 版本'
+        required: false
+        default: '3.44.4'
+        type: string
+
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
-  FLUTTER_VERSION: '3.44.4'
+  IS_STABLE: ${{ github.event_name == 'workflow_dispatch' && inputs.is_stable || !contains(github.ref, '-') }}
+  FLUTTER_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.flutter_version || '3.44.4' }}
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +61,12 @@ jobs:
 
   build:
     needs: [ test ]
+    if: |
+      always() && 
+      (github.event_name == 'push' || 
+       (github.event_name == 'workflow_dispatch' && 
+        (inputs.platform == 'all' || 
+         contains(matrix.platform, inputs.platform))))
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -101,7 +132,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: master
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -130,12 +161,12 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) }}
+          name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
           path: ./dist
           overwrite: true
 
   changelog:
-    if: ${{ !contains(github.ref, '-') }}
+    if: ${{ github.event_name == 'push' && !contains(github.ref, '-') }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -152,7 +183,8 @@ jobs:
           
           tags=($(git tag --merged HEAD --sort=-creatordate))
           
-          temp="NEW_CHANGELOG.md" > "$temp"
+          temp="NEW_CHANGELOG.md"
+          > "$temp"
           
           for i in "${!tags[@]}"; do
               curr="${tags[i]}"
@@ -184,13 +216,13 @@ jobs:
               exit 1
             fi
           fi
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   upload:
     permissions:
       contents: write
+    if: github.event_name == 'push'
     needs: [ build ]
     runs-on: ubuntu-latest
     services:
@@ -222,7 +254,8 @@ jobs:
           
           [ -z "$preTag" ] && preTag=""
           
-          out="release.md" > "$out"
+          out="release.md"
+          > "$out"
           
           for i in "${!tags[@]}"; do
             curr="${tags[i]}"
@@ -234,6 +267,7 @@ jobs:
             git log --no-merges --pretty=format:"%B" "$range" | \
             awk '!/Update changelog/ && NF {print "- " $0 "\n"}' >> "$out"
           done
+
       - name: Push to telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
